@@ -14,6 +14,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-old-style-declaration")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
@@ -33,6 +34,7 @@ set(SOURCES
   src/bno08x.cpp
   src/bno08x_ros.cpp
   src/ros_node.cpp
+  src/geom.cpp
 )
 
 # Create executable for the driver

@@ -2,6 +2,9 @@
 #include "bno08x_driver/i2c_interface.hpp"
 #include "bno08x_driver/uart_interface.hpp"
 #include "bno08x_driver/spi_interface.hpp"
+#include "bno08x_driver/geom.hpp"
+
+#include <math.h>
 
 constexpr uint8_t ROTATION_VECTOR_RECEIVED = 0x01;
 constexpr uint8_t ACCELEROMETER_RECEIVED   = 0x02;
@@ -242,6 +245,39 @@ void BNO08xROS::sensor_callback(void *cookie, sh2_SensorValue_t *sensor_value) {
 		this->imu_msg_.header.frame_id = this->frame_id_;
 		this->imu_msg_.header.stamp.sec = this->get_clock()->now().seconds();
 		this->imu_msg_.header.stamp.nanosec = this->get_clock()->now().nanoseconds();
+
+    // I believe the performance metrics need to be squared from the data sheet to meet the 
+    // definition of variance.
+    
+    // 3.5 degrees rotation vector error
+    // 3.1 degrees/s gyrometer error
+    // 0.35 m/s^2 linear acceleration error
+    double orientation_covariance = pow(degreesToRadians(3.5), 2);
+    double gyrometer_covariance = pow(degreesToRadians(3.1), 2);
+    double linear_covariance = pow(0.35, 2);
+  
+    // Write the actual covariance matrices and set them correctly
+    this->imu_msg_.orientation_covariance = 
+    { 
+      orientation_covariance , 0, 0, // x-covariance 
+      0, orientation_covariance, 0, // y-covariance
+      0, 0, orientation_covariance, // z-covariance
+    };
+
+    this->imu_msg_.angular_velocity_covariance = 
+    { 
+      gyrometer_covariance, 0, 0, // x-covariance 
+      0, gyrometer_covariance, 0, // y-covariance
+      0, 0, gyrometer_covariance, // z-covariance
+    };
+
+    this->imu_msg_.linear_acceleration_covariance = 
+    {
+      linear_covariance, 0, 0, // x-covariance
+      0, linear_covariance, 0, // y-covariance
+      0, 0, linear_covariance, // z-covariance
+    };
+    
 		this->imu_publisher_->publish(this->imu_msg_);
 		imu_received_flag_ = 0;
 	}
