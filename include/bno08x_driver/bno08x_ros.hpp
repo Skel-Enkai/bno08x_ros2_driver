@@ -54,5 +54,9 @@ private:
     bool publish_orientation_;
     bool publish_acceleration_;
     bool publish_angular_velocity_;
+
+    double orientation_variance_;
+    double gyrometer_variance_;
+    double linear_accel_variance_;
 };
 

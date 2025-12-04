@@ -2,9 +2,8 @@
 #include "bno08x_driver/i2c_interface.hpp"
 #include "bno08x_driver/uart_interface.hpp"
 #include "bno08x_driver/spi_interface.hpp"
-#include "bno08x_driver/geom.hpp"
 
-#include <math.h>
+#include <cmath>
 
 constexpr uint8_t ROTATION_VECTOR_RECEIVED = 0x01;
 constexpr uint8_t ACCELEROMETER_RECEIVED   = 0x02;
@@ -129,6 +128,16 @@ void BNO08xROS::init_parameters() {
     this->declare_parameter<int>("publish.magnetic_field.rate", 100);
     this->declare_parameter<bool>("publish.imu.enabled", true);
     this->declare_parameter<int>("publish.imu.rate", 100);
+    
+    // I believe the performance metrics need to be squared from the data sheet to meet the 
+    // definition of variance.
+    
+    // 3.5 degrees rotation vector error
+    this->declare_parameter("publish.imu.orientation_variance", pow(3.5 * M_PI / 180, 2));
+    // 3.1 degrees/s gyrometer error
+    this->declare_parameter("publish.imu.gyrometer_variance", pow(3.1 * M_PI / 180, 2));
+    // 0.35 m/s^2 linear acceleration error
+    this->declare_parameter("publish.imu.linear_variance", pow(0.35, 2));
 
     this->declare_parameter<bool>("i2c.enabled", true);
     this->declare_parameter<std::string>("i2c.bus", "/dev/i2c-7");
@@ -144,6 +153,10 @@ void BNO08xROS::init_parameters() {
     this->get_parameter("publish.magnetic_field.rate", magnetic_field_rate_);
     this->get_parameter("publish.imu.enabled", publish_imu_);
     this->get_parameter("publish.imu.rate", imu_rate_);
+
+    this->get_parameter("publish.imu.orientation_variance", orientation_variance_);
+    this->get_parameter("publish.imu.gyrometer_variance", gyrometer_variance_);
+    this->get_parameter("publish.imu.linear_variance", linear_accel_variance_);
 }
 
 /**
@@ -242,41 +255,32 @@ void BNO08xROS::sensor_callback(void *cookie, sh2_SensorValue_t *sensor_value) {
 	}
 
 	if(imu_received_flag_ == (ROTATION_VECTOR_RECEIVED | ACCELEROMETER_RECEIVED | GYROSCOPE_RECEIVED)){
-		this->imu_msg_.header.frame_id = this->frame_id_;
-		this->imu_msg_.header.stamp.sec = this->get_clock()->now().seconds();
-		this->imu_msg_.header.stamp.nanosec = this->get_clock()->now().nanoseconds();
 
-    // I believe the performance metrics need to be squared from the data sheet to meet the 
-    // definition of variance.
+		this->imu_msg_.header.frame_id = this->frame_id_;
     
-    // 3.5 degrees rotation vector error
-    // 3.1 degrees/s gyrometer error
-    // 0.35 m/s^2 linear acceleration error
-    double orientation_covariance = pow(degreesToRadians(3.5), 2);
-    double gyrometer_covariance = pow(degreesToRadians(3.1), 2);
-    double linear_covariance = pow(0.35, 2);
-  
-    // Write the actual covariance matrices and set them correctly
     this->imu_msg_.orientation_covariance = 
     { 
-      orientation_covariance , 0, 0, // x-covariance 
-      0, orientation_covariance, 0, // y-covariance
-      0, 0, orientation_covariance, // z-covariance
+      this->orientation_variance_, 0, 0, // x-covariance 
+      0, this->orientation_variance_, 0, // y-covariance
+      0, 0, this->orientation_variance_, // z-covariance
     };
 
     this->imu_msg_.angular_velocity_covariance = 
     { 
-      gyrometer_covariance, 0, 0, // x-covariance 
-      0, gyrometer_covariance, 0, // y-covariance
-      0, 0, gyrometer_covariance, // z-covariance
+      this->gyrometer_variance_, 0, 0, // x-covariance 
+      0, this->gyrometer_variance_, 0, // y-covariance
+      0, 0, this->gyrometer_variance_, // z-covariance
     };
 
     this->imu_msg_.linear_acceleration_covariance = 
     {
-      linear_covariance, 0, 0, // x-covariance
-      0, linear_covariance, 0, // y-covariance
-      0, 0, linear_covariance, // z-covariance
+      this->linear_accel_variance_, 0, 0, // x-covariance
+      0, this->linear_accel_variance_, 0, // y-covariance
+      0, 0, this->linear_accel_variance_, // z-covariance
     };
+
+		this->imu_msg_.header.stamp.sec = this->get_clock()->now().seconds();
+		this->imu_msg_.header.stamp.nanosec = this->get_clock()->now().nanoseconds();
     
 		this->imu_publisher_->publish(this->imu_msg_);
 		imu_received_flag_ = 0;
