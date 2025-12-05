@@ -23,6 +23,7 @@ private:
     void init_comms();
     void init_parameters();
     void init_sensor();
+    void init_imu_covariance();
     void poll_timer_callback();
     void reset();
 

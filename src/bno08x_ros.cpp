@@ -17,6 +17,7 @@ BNO08xROS::BNO08xROS()
     this->init_sensor();
 
     if (publish_imu_) {
+        this->init_imu_covariance();
         this->imu_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("/imu", 10);
         RCLCPP_INFO(this->get_logger(), "IMU Publisher created");
         RCLCPP_INFO(this->get_logger(), "IMU Rate: %d", imu_rate_);
@@ -207,6 +208,30 @@ void BNO08xROS::init_sensor() {
     }
 }   
 
+void BNO08xROS::init_imu_covariance()
+{
+    this->imu_msg_.orientation_covariance = 
+    { 
+      this->orientation_variance_, 0, 0, // x-covariance 
+      0, this->orientation_variance_, 0, // y-covariance
+      0, 0, this->orientation_variance_, // z-covariance
+    };
+
+    this->imu_msg_.angular_velocity_covariance = 
+    { 
+      this->gyrometer_variance_, 0, 0, // x-covariance 
+      0, this->gyrometer_variance_, 0, // y-covariance
+      0, 0, this->gyrometer_variance_, // z-covariance
+    };
+
+    this->imu_msg_.linear_acceleration_covariance = 
+    {
+      this->linear_accel_variance_, 0, 0, // x-covariance
+      0, this->linear_accel_variance_, 0, // y-covariance
+      0, 0, this->linear_accel_variance_, // z-covariance
+    };
+}
+
 /**
  * @brief Callback function for sensor events
  * 
@@ -258,27 +283,6 @@ void BNO08xROS::sensor_callback(void *cookie, sh2_SensorValue_t *sensor_value) {
 
 		this->imu_msg_.header.frame_id = this->frame_id_;
     
-    this->imu_msg_.orientation_covariance = 
-    { 
-      this->orientation_variance_, 0, 0, // x-covariance 
-      0, this->orientation_variance_, 0, // y-covariance
-      0, 0, this->orientation_variance_, // z-covariance
-    };
-
-    this->imu_msg_.angular_velocity_covariance = 
-    { 
-      this->gyrometer_variance_, 0, 0, // x-covariance 
-      0, this->gyrometer_variance_, 0, // y-covariance
-      0, 0, this->gyrometer_variance_, // z-covariance
-    };
-
-    this->imu_msg_.linear_acceleration_covariance = 
-    {
-      this->linear_accel_variance_, 0, 0, // x-covariance
-      0, this->linear_accel_variance_, 0, // y-covariance
-      0, 0, this->linear_accel_variance_, // z-covariance
-    };
-
 		this->imu_msg_.header.stamp.sec = this->get_clock()->now().seconds();
 		this->imu_msg_.header.stamp.nanosec = this->get_clock()->now().nanoseconds();
     
